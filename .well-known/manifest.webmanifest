@@ -14,14 +14,14 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "jasmine-144.png",
+      "src": "/jasmine-144.png",
       "sizes": "144x144",
       "type": "image/png"
-    },
+    }
   ],
   "screenshots": [
     {
-      "src": "screenshot.png",
+      "src": "/screenshot.png",
       "sizes": "800x600",
       "type": "image/png"
     }
@@ -40,11 +40,10 @@
       "short_name": "About",
       "description": "Open the about page",
       "url": "/about",
-      "icons": [{ "src": "jasmine.png", "sizes": "100x100" }]
+      "icons": [{ "src": "/jasmine.png", "sizes": "100x100" }]
     }
   ],
   "permissions_policy": {
-    "cross-origin-isolated": ["self"],
     "direct-sockets": ["self"],
 	"local-network": ["self"],
 	"loopback-network": ["self"]
