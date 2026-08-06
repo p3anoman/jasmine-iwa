@@ -12,44 +12,14 @@
     <script src="squeak.js" type="module"></script>
     <script src="jasmine-b3dengine-plugin.js"></script>
     <script src="jasmine-mpeg3-plugin.js"></script>
-    <script src="jasmine-socket-plugin.js"></script>
+    <script defer src="squeak-setup.js"></script>
+    <!-- WE'RE GOING TCPSPOCKETS BABY!! -->
+    <!-- script src="jasmine-socket-plugin.js"></script -->
     <!-- <script src="https://greggman.github.io/webgl-lint/webgl-lint.js" crossorigin></script> -->
 </head>
 <body>
     <canvas id="sqCanvas" width="800" height="600"></canvas>
     <canvas id="sqCursor" width="16" height="16"></canvas>
     <div id="sqSpinner"><div></div></div>
-    <script>
-        window.onload = function() {
-            // will copy error logs to console
-            Squeak.debugFiles = false;
-            // pretend to be Unix so Croquet platform detection works
-            Squeak.platformName = "unix";
-            // re-fetch content if needed (earlier versions were missing some files)
-            if (!Squeak.Settings["squeak-template:/jasmine/Content/CAD"]) {
-                var all = Object.keys(Squeak.Settings);
-                for (var i = 0; i < all.length; i++) {
-                    var key = all[i];
-                    if (key.startsWith("squeak-template:/jasmine")) {
-                        delete Squeak.Settings[key];
-                    }
-                }
-            }
-            // start SqueakJS
-            const params = new URLSearchParams(window.location.search);
-            const image = params.get("image") || "BridgeDemo.image";
-            const changes = image.replace(".image", ".changes");
-            const appName = (params.get("image") || "Croquet Jasmine").replace(".image", "");
-            SqueakJS.runSqueak(image, sqCanvas, {
-                appName,
-                fullscreen: true,
-                swapButtons: true,
-                spinner: sqSpinner,
-                files: [changes, "JasmineV1.sources"],
-                root: "/jasmine",
-                templates: { "/jasmine": "." },
-            });
-        };
-    </script>
 </body>
 </html>

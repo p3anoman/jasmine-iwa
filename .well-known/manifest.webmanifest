@@ -1,0 +1,52 @@
+{
+  "id": "/",
+  "scope": "/",
+  "name": "Croquet Jasmine",
+  "display": "standalone",
+  "start_url": "/",
+  "short_name": "jasmine",
+  "theme_color": "orange",
+  "description": "Croquet Jasmine on SqueakJS",
+  "orientation": "any",
+  "background_color": "#E1477E",
+  "related_applications": [],
+  "version": "1.0.0",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "jasmine-144.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot.png",
+      "sizes": "800x600",
+      "type": "image/png"
+    }
+  ],
+  "features": [
+    "Cross Platform",
+    "fast",
+    "simple"
+  ],
+  "categories": [
+    "utility"
+  ],
+  "shortcuts": [
+    {
+      "name": "Open About",
+      "short_name": "About",
+      "description": "Open the about page",
+      "url": "/about",
+      "icons": [{ "src": "jasmine.png", "sizes": "100x100" }]
+    }
+  ],
+  "permissions_policy": {
+    "cross-origin-isolated": ["self"],
+    "direct-sockets": ["self"],
+	"local-network": ["self"],
+	"loopback-network": ["self"]
+  }
+}
