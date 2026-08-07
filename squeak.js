@@ -40341,7 +40341,7 @@
      */
 
     function SocketPlugin() {
-
+console.log("******************** SOCKET PLUGIN loaded **************")
       return {
         getModuleName: function() { return 'SocketPlugin (http-only)'; },
         interpreterProxy: null,
@@ -40532,125 +40532,11 @@
 
             _performRequest: function() {
               // Assume a send is requested through WebSocket if connection is present
-              if (this.webSocket) {
-                this._performWebSocketSend();
+              if (this.tcpSocket) {
+                this._performTCPSocketSend();
                 return;
               }
-
-              var request = new TextDecoder("utf-8").decode(this.sendBuffer);
-
-              // Remove request from send buffer
-              var endOfRequestIndex = this.sendBuffer.findIndex(function(element, index, array) {
-                // Check for presence of "\r\n\r\n" denoting the end of the request (do simplistic but fast check)
-                return array[index] === "\r" && array[index + 2] === "\r" && array[index + 1] === "\n" && array[index + 3] === "\n";
-              });
-              if (endOfRequestIndex >= 0) {
-                this.sendBuffer = this.sendBuffer.subarray(endOfRequestIndex + 4);
-              } else {
-                this.sendBuffer = null;
-              }
-
-              // Extract header fields
-              var headerLines = request.split('\r\n\r\n')[0].split('\n');
-              // Split header lines and parse first line
-              var firstHeaderLineItems = headerLines[0].split(' ');
-              var httpMethod = firstHeaderLineItems[0];
-              if (httpMethod !== 'GET' && httpMethod !== 'PUT' &&
-                  httpMethod !== 'POST') {
-                this._otherEndClosed();
-                return -1;
-              }
-              var targetURL = firstHeaderLineItems[1];
-
-              // Extract possible data to send
-              var seenUpgrade = false;
-              var seenWebSocket = false;
-              var data = null;
-              for (var i = 1; i < headerLines.length; i++) {
-                var line = headerLines[i];
-                if (line.match(/Content-Length:/i)) {
-                  var contentLength = parseInt(line.substr(16));
-                  var end = this.sendBuffer.byteLength;
-                  data = this.sendBuffer.subarray(end - contentLength, end);
-                } else if (line.match(/Host:/i)) {
-                  var hostAndPort = line.substr(6).trim();
-                  var host = hostAndPort.split(':')[0];
-                  var port = parseInt(hostAndPort.split(':')[1]) || this.port;
-                  if (this.host !== host) {
-                    console.warn('Host for ' + this.hostAddress + ' was ' + this.host + ' but from HTTP request now ' + host);
-                    this.host = host;
-                  }
-                  if (this.port !== port) {
-                    console.warn('Port for ' + this.hostAddress + ' was ' + this.port + ' but from HTTP request now ' + port);
-                    this.port = port;
-                  }
-                } if (line.match(/Connection: Upgrade/i)) {
-                  seenUpgrade = true;
-                } else if (line.match(/Upgrade: WebSocket/i)) {
-                  seenWebSocket = true;
-                }
-              }
-
-              if (httpMethod === "GET" && seenUpgrade && seenWebSocket) {
-                this._performWebSocketRequest(targetURL, httpMethod, data, headerLines);
-              } else if (self.fetch) {
-                this._performFetchAPIRequest(targetURL, httpMethod, data, headerLines);
-              } else {
-                this._performXMLHTTPRequest(targetURL, httpMethod, data, headerLines);
-              }
-            },
-
-            _performFetchAPIRequest: function(targetURL, httpMethod, data, requestLines) {
-              var thisHandle = this;
-              var headers = {};
-              for (var i = 1; i < requestLines.length; i++) {
-                var lineItems = requestLines[i].split(':');
-                if (lineItems.length === 2) {
-                  headers[lineItems[0]] = lineItems[1].trim();
-                }
-              }
-              if (typeof SqueakJS === "object" && SqueakJS.options.ajax) {
-                  headers["X-Requested-With"] = "XMLHttpRequest";
-              }
-              var init = {
-                method: httpMethod,
-                headers: headers,
-                body: data,
-                mode: 'cors'
-              };
-
-              fetch(this._getURL(targetURL), init)
-              .then(thisHandle._handleFetchAPIResponse.bind(thisHandle))
-              .catch(function (e) {
-                var url = thisHandle._getURL(targetURL, true);
-                console.warn('Retrying with CORS proxy: ' + url);
-                fetch(url, init)
-                .then(function(res) {
-                  console.log('Success: ' + url);
-                  thisHandle._handleFetchAPIResponse(res);
-                  plugin.needProxy.add(thisHandle._hostAndPort());
-                })
-                .catch(function (e) {
-                  // KLUDGE! This is just a workaround for a broken
-                  // proxy server - we should remove it when
-                  // crossorigin.me is fixed
-                  console.warn('Fetch API failed, retrying with XMLHttpRequest');
-                  thisHandle._performXMLHTTPRequest(targetURL, httpMethod, data, requestLines);
-                });
-              });
-            },
-
-            _handleFetchAPIResponse: function(res) {
-              if (this.response === null) {
-                var header = ['HTTP/1.0 ', res.status, ' ', res.statusText, '\r\n'];
-                res.headers.forEach(function(value, key, array) {
-                  header = header.concat([key, ': ', value, '\r\n']);
-                });
-                header.push('\r\n');
-                this.response = [new TextEncoder('utf-8').encode(header.join(''))];
-              }
-              this._readIncremental(res.body.getReader());
-            },
+	    },
 
             _readIncremental: function(reader) {
               var thisHandle = this;
@@ -40665,134 +40551,17 @@
               });
             },
 
-            _performXMLHTTPRequest: function(targetURL, httpMethod, data, requestLines){
-              var thisHandle = this;
-
-              var contentType;
-              for (var i = 1; i < requestLines.length; i++) {
-                var line = requestLines[i];
-                if (line.match(/Content-Type:/i)) {
-                  contentType = encodeURIComponent(line.substr(14));
-                  break;
-                }
-              }
-
-              var httpRequest = new XMLHttpRequest();
-              httpRequest.open(httpMethod, this._getURL(targetURL));
-              if (contentType !== undefined) {
-                httpRequest.setRequestHeader('Content-type', contentType);
-              }
-              if (typeof SqueakJS === "object" && SqueakJS.options.ajax) {
-                  httpRequest.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-              }
-
-              httpRequest.responseType = "arraybuffer";
-
-              httpRequest.onload = function (oEvent) {
-                thisHandle._handleXMLHTTPResponse(this);
-              };
-
-              httpRequest.onerror = function(e) {
-                var url = thisHandle._getURL(targetURL, true);
-                console.warn('Retrying with CORS proxy: ' + url);
-                var retry = new XMLHttpRequest();
-                retry.open(httpMethod, url);
-                retry.responseType = httpRequest.responseType;
-                if (typeof SqueakJS === "object" && SqueakJS.options.ajaxx) {
-                    retry.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-                }
-                retry.onload = function(oEvent) {
-                  console.log('Success: ' + url);
-                  thisHandle._handleXMLHTTPResponse(this);
-                  plugin.needProxy.add(thisHandle._hostAndPort());
-                };
-                retry.onerror = function() {
-                  thisHandle._otherEndClosed();
-                  console.error("Failed to download:\n" + url);
-                };
-                retry.send(data);
-              };
-
-              httpRequest.send(data);
-            },
-
-            _handleXMLHTTPResponse: function(response) {
-              this.responseReceived = true;
-
-              var content = response.response;
-              if (!content) {
-                this._otherEndClosed();
-                return;
-              }
-              // Recreate header
-              var header = new TextEncoder('utf-8').encode(
-                'HTTP/1.0 ' + response.status + ' ' + response.statusText +
-                '\r\n' + response.getAllResponseHeaders() + '\r\n');
-              // Concat header and response
-              var res = new Uint8Array(header.byteLength + content.byteLength);
-              res.set(header, 0);
-              res.set(new Uint8Array(content), header.byteLength);
-
-              this.response = [res];
-              this._signalReadSemaphore();
-            },
-
-            _performWebSocketRequest: function(targetURL, httpMethod, data, requestLines){
-              var url = this._getURL(targetURL);
-
-              // Extract WebSocket key and subprotocol
-              var webSocketSubProtocol;
-              var webSocketKey;
-              for (var i = 1; i < requestLines.length; i++) {
-                var requestLine = requestLines[i].split(":");
-                if (requestLine[0] === "Sec-WebSocket-Protocol") {
-                  webSocketSubProtocol = requestLine[1].trim();
-                  if (webSocketKey) {
-                    break;  // Only break if both webSocketSubProtocol and webSocketKey are found
-                  }
-                } else if (requestLine[0] === "Sec-WebSocket-Key") {
-                  webSocketKey = requestLine[1].trim();
-                  if (webSocketSubProtocol) {
-                    break;  // Only break if both webSocketSubProtocol and webSocketKey are found
-                  }
-                }
-              }
-
-              // Keep track of WebSocket for future send and receive operations
-              this.webSocket = new WebSocket(url.replace(/^http/, "ws"), webSocketSubProtocol);
-
-              var thisHandle = this;
-              this.webSocket.onopen = function() {
+	    _performTCPSocketRequest: function(){
                 if (thisHandle.status !== plugin.Socket_Connected) {
                   thisHandle.status = plugin.Socket_Connected;
                   thisHandle._signalConnSemaphore();
                   thisHandle._signalWriteSemaphore(); // Immediately ready to write
                 }
 
-                // Send the (fake) handshake back to the caller
-                var acceptKey = new Uint8Array(sha1.array(webSocketKey + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
-                var acceptKeyString = Squeak.bytesAsString(acceptKey);
-                thisHandle._performWebSocketReceive(
-                  "HTTP/1.1 101 Switching Protocols\r\n" +
-                  "Upgrade: websocket\r\n" +
-                  "Connection: Upgrade\r\n" +
-                  "Sec-WebSocket-Accept: " + btoa(acceptKeyString) + "\r\n\r\n",
-                   true
-                );
-              };
-              this.webSocket.onmessage = function(event) {
-                thisHandle._performWebSocketReceive(event.data);
-              };
-              this.webSocket.onerror = function(e) {
-                thisHandle._otherEndClosed();
-                console.error("Error in WebSocket:", e);
-              };
-              this.webSocket.onclose = function() {
-                thisHandle._otherEndClosed();
-              };
+                thisHandle._performTCPSocketReceive();
             },
 
-            _performWebSocketReceive: function(message, skipFramePacking) {
+            _performTCPSocketReceive: function(message, skipFramePacking) {
 
               // Process received message
               var dataIsBinary = !message.substr;
@@ -40858,8 +40627,7 @@
               this._signalReadSemaphore();
             },
 
-            _performWebSocketSend: function() {
-              // Decode sendBuffer which is a WebSocket frame (from Smalltalk runtime)
+            _performTCPSocketSend: function() {
 
               // Read frame header fields
               var firstByte = this.sendBuffer[0];
@@ -40877,14 +40645,14 @@
                 dataIsBinary = true;
               } else if (opcode === 0x08) {
                 // Close connection
-                this.webSocket.close();
-                this.webSocket = null;
+                this.tcpSocket.close();
+                this.tcpSocket = null;
                 return;
               } else if (opcode === 0x09 || opcode === 0x0a) {
                 // Ping/pong frame (ignoring it, is handled by WebSocket implementation itself)
                 return;
               } else {
-                console.error("Unsupported WebSocket frame opcode " + opcode);
+                console.error("Unsupported TCPSocket frame opcode " + opcode);
                 return;
               }
               var secondByte = this.sendBuffer[1];
@@ -40934,11 +40702,11 @@
 
               // Remove frame from send buffer
               this.sendBuffer = this.sendBuffer.subarray(nextByteIndex);
-              this.webSocket.send(data);
+              this.writer.write(data);
 
               // Send remaining frames
               if (this.sendBuffer.byteLength > 0) {
-                this._performWebSocketSend();
+                this._performTCPSocketSend();
               }
             },
 
@@ -40946,6 +40714,13 @@
               this.hostAddress = hostAddress;
               this.host = plugin._reverseLookupNameForAddress(hostAddress);
               this.port = port;
+		this.tcpSocket = TCPSocket(this.host, this.port);
+		this.tcpSocket.opened.then((openInfo)=>{ 
+			this.readable = openInfo.readable;
+			this.writable = openInfo.writable;
+			this.reader = this.readable.getReader();
+			this.writer = this.writable.getWriter();
+		});
               this.status = plugin.Socket_Connected;
               this._signalConnSemaphore();
               this._signalWriteSemaphore(); // Immediately ready to write
@@ -40955,9 +40730,9 @@
               if (this.status == plugin.Socket_Connected ||
                   this.status == plugin.Socket_OtherEndClosed ||
                   this.status == plugin.Socket_WaitingForConnection) {
-                if (this.webSocket) {
-                  this.webSocket.close();
-                  this.webSocket = null;
+                if (this.tcpSocket) {
+                  this.tcpSocket.close();
+                  this.tcpSocket = null;
                 }
                 this.status = plugin.Socket_Unconnected;
                 this._signalConnSemaphore();
@@ -40971,7 +40746,7 @@
             dataAvailable: function() {
               if (this.status == plugin.Socket_InvalidSocket) return false;
               if (this.status == plugin.Socket_Connected) {
-                if (this.webSocket) {
+                if (this.tcpSocket) {
                   return this.response && this.response.length > 0;
                 } else {
                   if (this.response && this.response.length > 0) {
